@@ -111,6 +111,14 @@ button, input, select { font: inherit; color: inherit; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-primary { background: var(--blue); border-color: var(--blue); color: #06101d; }
 .btn-primary:hover:not(:disabled) { filter: brightness(1.1); background: var(--blue); }
+/* A half-faded blue still reads as "press me" on a dark panel, so a disabled
+   primary button drops the accent colour entirely instead. */
+.btn-primary:disabled {
+  background: var(--bg-raised);
+  border-color: var(--border);
+  color: var(--text-faint);
+  opacity: 1;
+}
 .btn-ghost { background: none; }
 
 /* ---------------------------------------------------------- banner --- */
@@ -372,6 +380,23 @@ button, input, select { font: inherit; color: inherit; }
 
 .parlay-actions { display: flex; gap: 8px; margin-top: 12px; }
 .parlay-actions .btn { flex: 1; }
+
+.btn-block { display: block; width: 100%; margin-top: 8px; }
+.copy-status { font-size: 12px; color: var(--green); margin: 6px 0 0; min-height: 16px; }
+.copy-status.warn { color: var(--yellow); }
+.copy-fallback { margin-top: 8px; font-size: 12px; color: var(--text-dim); }
+.copy-fallback summary { cursor: pointer; }
+.copy-fallback textarea {
+  width: 100%;
+  margin-top: 6px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: 11px/1.45 var(--mono);
+  padding: 8px;
+  resize: vertical;
+}
 
 .disclaimer { color: var(--text-faint); font-size: 11px; line-height: 1.5; margin-top: 16px; }
 

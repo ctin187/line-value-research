@@ -101,6 +101,13 @@ Two things it deliberately tells you that most parlay calculators do not:
   it shows will overstate a correlated parlay (and most books void these unless
   offered as an explicit same-game parlay).
 
+**Copy parlay slip** puts the whole ticket on your clipboard as plain text —
+legs, prices, books, payout, break-even rate, EV and suggested stake — to take
+to whichever book you actually bet at. The tool places no bets: no sportsbook
+exposes a public bet-placement API, and a button that pretended to would be
+lying to you. If the clipboard is unavailable the slip appears in a text box
+instead.
+
 ### Stake sizing
 
 Quarter-Kelly, hard-capped at 5% of bankroll (soft warning at 2%):

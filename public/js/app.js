@@ -161,6 +161,7 @@ function wireControls() {
   });
   $('#stake').addEventListener('input', renderParlay);
   $('#bankroll').addEventListener('input', renderParlay);
+  $('#copy-parlay').addEventListener('click', copySlip);
 }
 
 /* --------------------------------------------------------------- data */
@@ -621,13 +622,19 @@ function renderParlay() {
   list.replaceChildren();
   $('#leg-count').textContent = state.legs.length;
 
+  $('#copy-parlay').disabled = state.legs.length === 0;
+
   if (!state.legs.length) {
     const empty = el('li', 'empty');
     empty.innerHTML = 'Click <b>+</b> on any price to add a leg.';
     list.append(empty);
     $('#parlay-stats').replaceChildren();
+    // The sizing box carries its own border and background, so an emptied one
+    // would sit there as a stray rectangle. Hide it rather than blank it.
     $('#sizing').replaceChildren();
+    $('#sizing').hidden = true;
     $('#correlation-warning').hidden = true;
+    resetCopyUi();
     return;
   }
 
@@ -655,6 +662,7 @@ function renderParlay() {
 
   const quote = currentQuote();
   renderParlayStats(quote);
+  $('#sizing').hidden = false;
   renderSizing(quote);
 
   const warn = $('#correlation-warning');
@@ -719,6 +727,99 @@ function renderSizing(q) {
     if (s.overSoftCap) note += ` Above the ${(s.softCapPct * 100).toFixed(0)}% soft limit — size down if the estimates are shaky.`;
   }
   box.append(el('div', 'sizing-note', note));
+}
+
+/**
+ * Plain-text rendering of the slip, for taking to whichever book you actually
+ * bet at. This tool deliberately does not place bets -- no sportsbook exposes a
+ * public bet-placement API, and a button that pretended to would be a lie -- so
+ * handing you the slip is the honest terminal action.
+ */
+function slipText(quote) {
+  const lines = [];
+  const stamp = new Date().toLocaleString();
+
+  lines.push(`PARLAY - ${quote.legCount} leg${quote.legCount === 1 ? '' : 's'} - `
+    + `${formatAmerican(quote.american)} (${quote.decimal.toFixed(3)}x)`);
+  lines.push('');
+
+  state.legs.forEach((leg, i) => {
+    const line = leg.point === null || leg.market === 'h2h'
+      ? marketLabel(leg.market)
+      : `${marketLabel(leg.market)} ${formatPoint(leg.point, { signed: leg.market !== 'totals' })}`;
+    lines.push(`${i + 1}. ${leg.selection} - ${line} ${formatAmerican(leg.price)} at ${leg.bookTitle}`);
+    lines.push(`   ${leg.matchup}`);
+  });
+
+  lines.push('');
+  lines.push(`Stake ${money(quote.stake)} -> payout ${money(quote.payout)} (profit ${money(quote.profit)})`);
+  lines.push(`Break-even win rate ${pct(quote.requiredWinRate)} `
+    + `| required accuracy per leg ${pct(quote.requiredAccuracyPerLeg)}`);
+  lines.push(`Your estimated win rate ${pct(quote.estimatedProb)} `
+    + `| EV ${quote.evPerUnit >= 0 ? '+' : ''}${(quote.evPerUnit * 100).toFixed(2)}% (${money(quote.evOnStake)})`);
+  lines.push(`Suggested stake ${money(quote.sizing.stake)} `
+    + `(${(quote.sizing.kellyMultiplier ?? 0.25) * 100}% Kelly, capped at `
+    + `${((quote.sizing.hardCapPct ?? 0.05) * 100).toFixed(0)}% of bankroll)`);
+
+  if (quote.correlatedGameIds.length) {
+    lines.push('');
+    lines.push('WARNING: legs share a game. The payout maths above assumes independent');
+    lines.push('legs, so it overstates this parlay, and many books void such tickets.');
+  }
+
+  lines.push('');
+  lines.push(`Generated ${stamp} by Line Value Research${state.config.mode === 'demo' ? ' (DEMO DATA - simulated lines)' : ''}.`);
+  lines.push('Research only. No bet was placed and nothing here is advice.');
+
+  return lines.join('\n');
+}
+
+/**
+ * Put the copy controls back to their resting state. Clearing the text alone is
+ * not enough: the status paragraph keeps its `warn` class, and selecting the
+ * fallback textarea leaves a selection range that the browser goes on painting
+ * after the textarea is hidden.
+ */
+function resetCopyUi() {
+  const status = $('#copy-status');
+  status.textContent = '';
+  status.className = 'copy-status';
+
+  const fallback = $('#copy-fallback');
+  if (!fallback.hidden) {
+    fallback.hidden = true;
+    fallback.open = false;
+    window.getSelection()?.removeAllRanges();
+  }
+  clearTimeout(copySlip.timer);
+}
+
+async function copySlip() {
+  const quote = currentQuote();
+  if (!quote || quote.legCount === 0) return;
+
+  const text = slipText(quote);
+  const status = $('#copy-status');
+  const fallback = $('#copy-fallback');
+  $('#copy-text').value = text;
+
+  try {
+    // Only available on secure origins, which localhost counts as -- but a page
+    // served over plain http from another host will land in the catch below.
+    await navigator.clipboard.writeText(text);
+    status.className = 'copy-status';
+    status.textContent = `Copied ${quote.legCount}-leg slip to the clipboard.`;
+    fallback.hidden = true;
+  } catch {
+    status.className = 'copy-status warn';
+    status.textContent = 'Clipboard unavailable here — the slip is below, ready to select.';
+    fallback.hidden = false;
+    fallback.open = true;
+    $('#copy-text').select();
+  }
+
+  clearTimeout(copySlip.timer);
+  copySlip.timer = setTimeout(resetCopyUi, 6000);
 }
 
 /* --------------------------------------------------------- utilities */

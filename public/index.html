@@ -136,6 +136,15 @@
       <button id="clear-parlay" class="btn btn-ghost">Clear</button>
     </div>
 
+    <button id="copy-parlay" class="btn btn-primary btn-block" disabled>
+      Copy parlay slip
+    </button>
+    <p id="copy-status" class="copy-status" role="status" aria-live="polite"></p>
+    <details id="copy-fallback" class="copy-fallback" hidden>
+      <summary>Slip text</summary>
+      <textarea id="copy-text" readonly rows="10"></textarea>
+    </details>
+
     <p class="disclaimer">
       Research tool only. No bets are placed and nothing here is advice — edges are
       estimates from public prices, and every estimate can be wrong.
