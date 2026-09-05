@@ -16,6 +16,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { config, SPORTS, MARKETS, BOOK_TITLES, SHARP_BOOKS, PUBLIC_BOOKS, ROOT } from './config.js';
 import { Scanner } from './scanner.js';
 import { quoteParlay } from '../shared/parlay.js';
@@ -272,10 +273,30 @@ function readJson(req) {
   });
 }
 
+/**
+ * Was this module run directly, rather than imported by a test?
+ *
+ * `pathToFileURL` is the only correct way to ask. Pasting a path after
+ * "file://" happens to work on macOS and Linux, where an absolute path already
+ * starts with the slash the URL needs -- and fails everywhere else: on Windows
+ * a path is "C:\dir\server.js", which needs a third slash, forward slashes and
+ * a drive-letter form, so the comparison never matched and the server exited
+ * silently without listening. It also breaks on any platform when a folder name
+ * contains a space or other character a URL has to percent-encode.
+ */
+export function isEntryPoint(moduleUrl, argv1 = process.argv[1]) {
+  if (!argv1) return false;
+  try {
+    return moduleUrl === pathToFileURL(path.resolve(argv1)).href;
+  } catch {
+    return false;
+  }
+}
+
 export { server, scanner };
 
 /** Only start listening when run directly, so tests can import the app. */
-if (process.argv[1] && import.meta.url === `file://${path.resolve(process.argv[1])}`) {
+if (isEntryPoint(import.meta.url)) {
   scanner.start();
   server.listen(config.port, config.host, () => {
     const where = `http://${config.host}:${config.port}`;

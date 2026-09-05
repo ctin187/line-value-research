@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { LineHistory } from '../src/lib/history.js';
 import { AlertLog, buildAlerts, ALERT_KINDS } from '../src/lib/alerts.js';
@@ -10,6 +11,7 @@ import { OddsApiClient, QuotaError, OddsApiError } from '../src/lib/oddsApi.js';
 import { DemoFeed } from '../src/lib/demoFeed.js';
 import { Scanner } from '../src/scanner.js';
 import { config, loadEnv } from '../src/config.js';
+import { isEntryPoint } from '../src/server.js';
 
 const tmp = (name) => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lvr-')), name);
 
@@ -85,6 +87,27 @@ test('pruning drops lines whose game has left the feed', () => {
   history.record([offer(), offer({ key: 'g2|spreads|pinnacle|Jets', gameId: 'g2' })]);
   assert.equal(history.prune(['g1']), 1);
   assert.equal(history.size(), 1);
+});
+
+/* ------------------------------------------------------- entry-point check */
+
+test('the server only self-starts when it is the file being run', () => {
+  const here = path.resolve('src/server.js');
+  assert.equal(isEntryPoint(pathToFileURL(here).href, 'src/server.js'), true);
+  assert.equal(isEntryPoint(pathToFileURL(here).href, here), true);
+  assert.equal(isEntryPoint('file:///elsewhere/other.js', 'src/server.js'), false,
+    'an imported module must not start listening');
+  assert.equal(isEntryPoint(pathToFileURL(here).href, undefined), false);
+});
+
+test('the entry-point check survives paths a URL has to escape', () => {
+  // Pasting a path after "file://" breaks on any path needing percent-encoding
+  // (a space in a folder name) and on every Windows path, where the drive-letter
+  // form differs entirely. Both used to make the server exit without listening.
+  const spaced = path.resolve('/tmp/my folder/server.js');
+  assert.equal(isEntryPoint(pathToFileURL(spaced).href, spaced), true);
+  assert.notEqual(pathToFileURL(spaced).href, 'file://' + spaced,
+    'this is exactly the mismatch the naive check produced');
 });
 
 /* --------------------------------------------------------- .env loading */
