@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Line Value Research — NFL / CFB Scanner</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>📈</text></svg>" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">◆</span>
+    <span class="brand-name">Line Value Research</span>
+    <span id="mode-badge" class="badge badge-muted" title="Data source">…</span>
+  </div>
+
+  <div class="sport-toggle" role="tablist" aria-label="Sport">
+    <button class="seg active" role="tab" data-sport="nfl" aria-selected="true">NFL</button>
+    <button class="seg" role="tab" data-sport="ncaaf" aria-selected="false">College</button>
+  </div>
+
+  <div class="market-toggle" role="group" aria-label="Bet type">
+    <label class="chk"><input type="checkbox" data-market="spreads" checked /> Spreads</label>
+    <label class="chk"><input type="checkbox" data-market="totals" checked /> Totals</label>
+    <label class="chk"><input type="checkbox" data-market="h2h" checked /> Moneyline</label>
+  </div>
+
+  <div class="topbar-right">
+    <span id="quota" class="quota" title="Upstream API credits"></span>
+    <span id="countdown" class="countdown" title="Next auto-refresh"></span>
+    <button id="refresh" class="btn btn-primary">Refresh</button>
+  </div>
+</header>
+
+<div id="banner" class="banner" hidden></div>
+
+<main class="layout">
+
+  <aside class="panel panel-left" aria-label="Research filters">
+    <h2 class="panel-title">Research</h2>
+
+    <label class="field">
+      <span class="field-label">Search games</span>
+      <input id="search" type="search" placeholder="Chiefs, Georgia…" autocomplete="off" />
+    </label>
+
+    <label class="field">
+      <span class="field-label">
+        Minimum edge <output id="edge-value" class="field-value">any</output>
+      </span>
+      <input id="min-edge" type="range" min="-3" max="6" step="0.1" value="-3" />
+      <span class="field-hint">Hide selections whose best price is below this edge. Fully left shows the whole board.</span>
+    </label>
+
+    <label class="switch">
+      <input id="high-value-only" type="checkbox" />
+      <span>Show high value only <em>(≥<span id="high-threshold">2</span>% edge)</em></span>
+    </label>
+
+    <label class="switch">
+      <input id="live-only" type="checkbox" />
+      <span>Live / in-progress games only</span>
+    </label>
+
+    <label class="switch">
+      <input id="auto-refresh" type="checkbox" checked />
+      <span>Auto-refresh</span>
+    </label>
+
+    <label class="field">
+      <span class="field-label">Sort by</span>
+      <select id="sort">
+        <option value="edge">Edge % (highest first)</option>
+        <option value="movement">Line movement (most shifted)</option>
+        <option value="divergence">Book disagreement (sharpest)</option>
+        <option value="time">Kickoff time</option>
+      </select>
+    </label>
+
+    <fieldset class="field">
+      <legend class="field-label">Sportsbooks</legend>
+      <div id="book-filters" class="book-filters"></div>
+    </fieldset>
+
+    <section class="legend">
+      <h3 class="panel-subtitle">Legend</h3>
+      <ul class="legend-list">
+        <li><i class="dot tier-high"></i> Edge ≥ 2% — high value</li>
+        <li><i class="dot tier-moderate"></i> Edge 1–2% — moderate</li>
+        <li><i class="dot tier-low"></i> Edge &lt; 1% — thin</li>
+        <li><i class="dot tier-negative"></i> Negative edge — avoid</li>
+        <li><i class="dot tier-sharp"></i> Sharp / public disagreement</li>
+      </ul>
+    </section>
+
+    <section class="alerts" aria-live="polite">
+      <h3 class="panel-subtitle">Alerts <span id="alert-count" class="badge badge-muted">0</span></h3>
+      <ul id="alert-list" class="alert-list"><li class="empty">No alerts yet.</li></ul>
+    </section>
+  </aside>
+
+  <section class="panel panel-center" aria-label="Games">
+    <div class="center-head">
+      <h2 class="panel-title">Board <span id="game-count" class="badge badge-muted">0</span></h2>
+      <span id="fetched-at" class="muted"></span>
+    </div>
+    <div id="games" class="games"><p class="empty">Loading lines…</p></div>
+  </section>
+
+  <aside class="panel panel-right" aria-label="Parlay builder">
+    <h2 class="panel-title">Parlay <span id="leg-count" class="badge badge-muted">0</span></h2>
+
+    <ul id="parlay-legs" class="parlay-legs"><li class="empty">Click <b>+</b> on any price to add a leg.</li></ul>
+
+    <div id="correlation-warning" class="warn" hidden></div>
+
+    <div class="parlay-inputs">
+      <label class="field compact">
+        <span class="field-label">Bankroll</span>
+        <input id="bankroll" type="number" min="0" step="10" value="1000" />
+      </label>
+      <label class="field compact">
+        <span class="field-label">Stake</span>
+        <input id="stake" type="number" min="0" step="5" value="25" />
+      </label>
+    </div>
+
+    <dl id="parlay-stats" class="stats"></dl>
+
+    <div id="sizing" class="sizing"></div>
+
+    <div class="parlay-actions">
+      <button id="use-suggested" class="btn">Use suggested stake</button>
+      <button id="clear-parlay" class="btn btn-ghost">Clear</button>
+    </div>
+
+    <p class="disclaimer">
+      Research tool only. No bets are placed and nothing here is advice — edges are
+      estimates from public prices, and every estimate can be wrong.
+    </p>
+  </aside>
+
+</main>
+
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+{
+  "name": "line-value-research",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Live NFL / NCAAF betting line scanner, value-identification engine and parlay builder.",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "demo": "node src/server.js --demo",
+    "scan": "node src/cli.js",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "betting",
+    "odds",
+    "nfl",
+    "ncaaf",
+    "parlay",
+    "value"
+  ],
+  "license": "MIT"
+}
