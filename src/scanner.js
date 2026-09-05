@@ -207,15 +207,31 @@ export class Scanner extends EventEmitter {
     return results;
   }
 
-  /** Background polling. Safe to call twice; the previous timer is cleared. */
+  /**
+   * Begin background polling, if any is configured.
+   *
+   * Deliberately does NOT fetch on boot. Starting the app is not the same as
+   * asking for fresh odds -- restarting it a few times while setting things up
+   * should not quietly cost a chunk of a monthly allowance. The first fetch for
+   * a sport happens when the board is actually opened or Refresh is pressed.
+   *
+   * With `autoRefreshMs` at its default of 0 no timer is created at all, so the
+   * scanner only ever calls upstream because someone asked it to.
+   */
   start() {
     this.stop();
-    this.refreshAll().catch((err) => this.emit('error', err));
-    this.timer = setInterval(() => {
-      this.refreshAll().catch((err) => this.emit('error', err));
-    }, config.fetchIntervalMs);
-    this.timer.unref?.();
+    if (config.autoRefreshMs > 0) {
+      this.timer = setInterval(() => {
+        this.refreshAll().catch((err) => this.emit('error', err));
+      }, config.autoRefreshMs);
+      this.timer.unref?.();
+    }
     return this;
+  }
+
+  /** True when the scanner is polling on a schedule rather than on demand. */
+  get autoRefreshing() {
+    return config.autoRefreshMs > 0;
   }
 
   stop() {
@@ -308,6 +324,7 @@ export class Scanner extends EventEmitter {
       thresholds: config.thresholds,
       risk: config.risk,
       uiRefreshMs: config.uiRefreshMs,
+      autoRefreshMs: config.autoRefreshMs,
       fetchIntervalMs: config.fetchIntervalMs,
       nextFetchInMs: Math.max(0, config.fetchIntervalMs - (Date.now() - (this.lastFetchAt.get(sport) || 0))),
       alerts: this.alerts.list(25),

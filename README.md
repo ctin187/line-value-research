@@ -162,17 +162,22 @@ and no bets are placed.
 The free tier is ~500 credits/month. **One request costs `markets × regions`
 credits** — 3 with the default `spreads,totals,h2h` over `us` — per sport.
 
-The app therefore runs two independent clocks:
+**Nothing is fetched on a timer by default, and nothing is fetched at startup.**
+The board pulls a sport once when you first open it, and after that only when
+you press **Refresh**. So a running app that you are not touching costs nothing,
+and restarting it while you set things up costs nothing either.
 
+- **`AUTO_REFRESH_MS` (default `0`, off)** — the only setting that spends
+  credits without being asked. Set it to `900000` (15 min) or `1800000` (30 min)
+  if your plan can afford a schedule.
 - **`UI_REFRESH_MS` (default 60s)** — how often the browser re-reads the
-  server's cached board. Costs nothing. This is the 60-second live scan.
-- **`FETCH_INTERVAL_MS` (default 5 min)** — how often the server may call The
-  Odds API. This is what spends credits.
+  already-fetched board. Costs nothing, and is skipped while auto-refresh is off.
+- **`FETCH_INTERVAL_MS` (default 5 min)** — a cache floor, not a schedule: how
+  long a fetched board is served before an unforced refresh may go upstream.
 
-At the defaults, scanning both sports costs about 864 credits/day, so on a free
-plan run it while you are using it rather than leaving it up overnight. A
-literal 60-second upstream poll would spend a whole free month in about two
-hours.
+For reference, with auto-refresh switched on: every 5 minutes across both sports
+costs ~864 credits/day, which spends a free month in about seven hours of
+runtime. Every 30 minutes costs ~144/day. Manual costs exactly what you press.
 
 Three guards make overspending hard:
 

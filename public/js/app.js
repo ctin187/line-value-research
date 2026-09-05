@@ -20,7 +20,9 @@ const state = {
   minEdge: MIN_EDGE_OFF,
   highValueOnly: false,
   liveOnly: false,
-  autoRefresh: true,
+  autoRefresh: false,
+  /** Sports we have already asked upstream for, so a failure is not retried in a loop. */
+  fetchAttempted: new Set(),
   sort: 'edge',
   search: '',
   legs: loadLegs(),
@@ -49,12 +51,18 @@ async function init() {
   $('#high-threshold').textContent = state.config.thresholds.highEdgePct;
   $('#bankroll').value = state.config.risk.bankroll;
 
+  state.autoRefresh = state.config.autoRefreshMs > 0;
+  $('#auto-refresh').checked = state.autoRefresh;
+
   renderModeBadge();
   renderBookFilters();
   wireControls();
   openEventStream();
 
   await refresh();
+  // The server no longer fetches on boot, so an unseen sport has an empty
+  // board until something asks. Opening it is that ask -- one call, one sport.
+  await fetchIfNeverFetched();
   startTimers();
 }
 
@@ -104,7 +112,7 @@ function wireControls() {
         b.setAttribute('aria-selected', String(active));
       });
       state.sport = btn.dataset.sport;
-      refresh();
+      refresh().then(fetchIfNeverFetched);
     });
   });
 
@@ -135,7 +143,7 @@ function wireControls() {
   $('#auto-refresh').addEventListener('change', (e) => {
     state.autoRefresh = e.target.checked;
     if (state.autoRefresh) scheduleNext();
-    else $('#countdown').textContent = 'auto-refresh off';
+    else renderRefreshHint();
   });
   $('#sort').addEventListener('change', (e) => {
     state.sort = e.target.value;
@@ -220,6 +228,17 @@ async function refresh({ auto = false } = {}) {
   }
 }
 
+/**
+ * Fetch this sport once if it has never been fetched. Guarded by a per-sport
+ * flag so a refusal (quota exhausted, bad key) is not retried on every render.
+ */
+async function fetchIfNeverFetched() {
+  if (state.view?.fetchedAt) return;
+  if (state.fetchAttempted.has(state.sport)) return;
+  state.fetchAttempted.add(state.sport);
+  await forceRefresh();
+}
+
 /** Ask the server to hit the upstream API now. This does spend credits. */
 async function forceRefresh() {
   const btn = $('#refresh');
@@ -250,16 +269,42 @@ function debounceRefresh() {
 
 function startTimers() {
   setInterval(() => {
+    if (!state.autoRefresh) {
+      renderRefreshHint();
+      return;
+    }
     if (!state.nextRefreshAt) return;
     const left = Math.max(0, state.nextRefreshAt - Date.now());
-    $('#countdown').textContent = state.autoRefresh ? `next in ${Math.ceil(left / 1000)}s` : 'auto-refresh off';
-    if (state.autoRefresh && left === 0) refresh({ auto: true });
+    $('#countdown').textContent = `next in ${Math.ceil(left / 1000)}s`;
+    if (left === 0) refresh({ auto: true });
   }, 1000);
 }
 
 function scheduleNext() {
+  if (!state.autoRefresh) {
+    state.nextRefreshAt = null;
+    return;
+  }
   const interval = state.view?.uiRefreshMs || state.config.uiRefreshMs || 60_000;
   state.nextRefreshAt = Date.now() + interval;
+}
+
+/**
+ * With auto-refresh off there is no countdown to show, so the slot says what
+ * pressing Refresh will cost instead. A ticking clock next to a credit balance
+ * reads like the clock is spending them; this says plainly that nothing is.
+ */
+function renderRefreshHint() {
+  const quota = state.view?.quota;
+  const el = $('#countdown');
+  if (!quota?.configured) {
+    el.textContent = 'manual · demo feed';
+    el.title = 'Simulated data. Refresh costs nothing.';
+    return;
+  }
+  const n = quota.creditCost;
+  el.textContent = `manual · refresh costs ~${n} credit${n === 1 ? '' : 's'}`;
+  el.title = 'Nothing is fetched on a timer. Only Refresh spends credits.';
 }
 
 /**
@@ -306,6 +351,8 @@ function renderStatus() {
   $('#fetched-at').textContent = view.fetchedAt
     ? `updated ${timeAgo(view.fetchedAt)}${view.stale ? ' (stale)' : ''}`
     : '';
+
+  if (!state.autoRefresh) renderRefreshHint();
 
   const q = view.quota;
   const quotaEl = $('#quota');

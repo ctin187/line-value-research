@@ -101,17 +101,24 @@ export const config = {
   ]),
 
   /**
-   * Two separate clocks, deliberately.
+   * Refreshing, and what it costs.
    *
-   * `uiRefreshMs` is how often the browser re-pulls the server's cached state --
-   * cheap, no API cost, and the 60s cadence the scanner is specified to run at.
+   * `autoRefreshMs` is the ONLY setting that spends credits without you asking.
+   * It defaults to 0, meaning off: the scanner never polls on a timer, and every
+   * upstream call comes from an explicit Refresh. On a ~500 credit/month free
+   * plan that is the difference between paying while you read the board and
+   * paying only when you ask for new numbers. Set it (say 900000 for 15 minutes)
+   * if your plan can afford a schedule.
    *
-   * `fetchIntervalMs` is how often the server is allowed to call the upstream
-   * odds API. The free tier is ~500 credits/month and one call costs
-   * (markets x regions) credits, so a literal 60s upstream poll would burn a
-   * month of quota in about two hours. Default is 5 minutes; lower it only if
-   * your plan can afford it.
+   * `uiRefreshMs` is how often the browser re-reads the server's already-fetched
+   * board. It costs nothing, and is skipped entirely while auto-refresh is off,
+   * because with no background fetching there is nothing new to pick up.
+   *
+   * `fetchIntervalMs` is a floor, not a schedule: how long a fetched board is
+   * served from cache before an unforced refresh is allowed to go upstream. The
+   * Refresh button forces past it (the quota guards still apply).
    */
+  autoRefreshMs: num(process.env.AUTO_REFRESH_MS, 0),
   uiRefreshMs: num(process.env.UI_REFRESH_MS, 60_000),
   fetchIntervalMs: num(process.env.FETCH_INTERVAL_MS, 300_000),
   /** Refuse to spend upstream credits once the remaining balance drops here. */

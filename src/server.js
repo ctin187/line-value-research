@@ -98,6 +98,7 @@ async function handleApi(req, res, url) {
       thresholds: config.thresholds,
       risk: config.risk,
       uiRefreshMs: config.uiRefreshMs,
+      autoRefreshMs: config.autoRefreshMs,
       fetchIntervalMs: config.fetchIntervalMs,
       lookaheadDays: config.lookaheadDays,
       devigMethod: config.devigMethod,
@@ -303,10 +304,13 @@ if (isEntryPoint(import.meta.url)) {
     console.log(`\n  Line Value Research  ->  ${where}`);
     console.log(`  mode: ${scanner.mode}${scanner.demo ? '  (no ODDS_API_KEY — serving simulated lines)' : ''}`);
     if (!scanner.demo) {
-      console.log(`  upstream fetch every ${Math.round(config.fetchIntervalMs / 1000)}s`
-        + ` (~${scanner.client.creditCost()} credits per sport per call)`);
+      console.log(config.autoRefreshMs > 0
+        ? `  auto-refresh every ${Math.round(config.autoRefreshMs / 60_000)} min`
+          + ` (~${scanner.client.creditCost() * 2} credits each time)`
+        : `  refresh: manual only — nothing is fetched until you press Refresh`
+          + ` (~${scanner.client.creditCost()} credit${scanner.client.creditCost() === 1 ? '' : 's'} per press)`);
     }
-    console.log(`  UI refresh every ${Math.round(config.uiRefreshMs / 1000)}s\n`);
+    console.log('');
   });
 
   const shutdown = () => {

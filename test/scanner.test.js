@@ -498,6 +498,30 @@ test('an upstream failure serves the last good board instead of blanking', async
   assert.match(degraded.error.message, /having problems/);
 });
 
+test('starting the scanner does not fetch anything on its own', async () => {
+  const scanner = await demoScanner();
+  scanner.start();
+  assert.equal(scanner.autoRefreshing, false, 'auto-refresh is off by default');
+  assert.equal(scanner.timer, null, 'no background timer is created');
+
+  // Restarting the app repeatedly must not quietly spend an allowance.
+  scanner.start();
+  scanner.start();
+  assert.equal(scanner.view({ sport: 'nfl' }).fetchedAt, null, 'no board was fetched on boot');
+  scanner.stop();
+});
+
+test('an explicit refresh is still the way to get a board', async () => {
+  const scanner = await demoScanner();
+  scanner.start();
+  assert.equal(scanner.view({ sport: 'nfl' }).fetchedAt, null);
+
+  await scanner.refresh('nfl', { force: true });
+  assert.ok(scanner.view({ sport: 'nfl' }).fetchedAt, 'Refresh fetches');
+  assert.equal(scanner.view({ sport: 'ncaaf' }).fetchedAt, null, 'and only for the sport asked for');
+  scanner.stop();
+});
+
 test('an unknown sport is rejected', async () => {
   const scanner = await demoScanner();
   await assert.rejects(() => scanner.refresh('cricket'), /Unknown sport/);
