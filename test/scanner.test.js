@@ -9,7 +9,7 @@ import { AlertLog, buildAlerts, ALERT_KINDS } from '../src/lib/alerts.js';
 import { OddsApiClient, QuotaError, OddsApiError } from '../src/lib/oddsApi.js';
 import { DemoFeed } from '../src/lib/demoFeed.js';
 import { Scanner } from '../src/scanner.js';
-import { config } from '../src/config.js';
+import { config, loadEnv } from '../src/config.js';
 
 const tmp = (name) => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lvr-')), name);
 
@@ -85,6 +85,28 @@ test('pruning drops lines whose game has left the feed', () => {
   history.record([offer(), offer({ key: 'g2|spreads|pinnacle|Jets', gameId: 'g2' })]);
   assert.equal(history.prune(['g1']), 1);
   assert.equal(history.size(), 1);
+});
+
+/* --------------------------------------------------------- .env loading */
+
+test('a .env file saved by a Windows editor still yields its key', () => {
+  const file = tmp('.env');
+  // UTF-8 BOM, CRLF endings, a comment and a blank line -- what Notepad writes.
+  fs.writeFileSync(file, '\uFEFF# my key\r\nODDS_API_KEY=abc123\r\n\r\nPORT=4000\r\n', 'utf8');
+
+  const parsed = loadEnv(file);
+  assert.equal(parsed.ODDS_API_KEY, 'abc123', 'the BOM must not become part of the first key');
+  assert.equal(parsed.PORT, '4000');
+  assert.equal(Object.keys(parsed).includes('# my key'), false, 'comments are skipped');
+});
+
+test('quoted values and stray whitespace are handled', () => {
+  const file = tmp('.env');
+  fs.writeFileSync(file, 'A="quoted"\nB=  spaced  \nC=\n', 'utf8');
+  const parsed = loadEnv(file);
+  assert.equal(parsed.A, 'quoted');
+  assert.equal(parsed.B, 'spaced');
+  assert.equal(parsed.C, '');
 });
 
 /* -------------------------------------------------------------- alerts */

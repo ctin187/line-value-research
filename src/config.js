@@ -16,7 +16,12 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 export function loadEnv(file = path.join(ROOT, '.env')) {
   if (!fs.existsSync(file)) return {};
   const parsed = {};
-  for (const rawLine of fs.readFileSync(file, 'utf8').split('\n')) {
+  // Notepad and friends often save UTF-8 with a byte-order mark. Left in place
+  // it makes the first key literally "\uFEFFODDS_API_KEY", so the app reports
+  // no key while the user is looking straight at one. Strip it, and tolerate
+  // Windows CRLF line endings while we are here.
+  const text = fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '');
+  for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line || line.startsWith('#')) continue;
     const eq = line.indexOf('=');
