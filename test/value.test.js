@@ -263,6 +263,86 @@ test('analyzeGame produces graded selections and the right flags', () => {
   assert.equal(homeSpread.best.book, 'pinnacle');
 });
 
+test('in-play, a book that has not repriced is dropped from the consensus', () => {
+  const now = Date.now();
+  const fresh = new Date(now).toISOString();
+  const stale = new Date(now - 10 * 60_000).toISOString();
+
+  const raw = makeGame({
+    books: [
+      { key: 'draftkings', ml: [-250, 198] },
+      { key: 'fanduel', ml: [-260, 205] },
+      { key: 'pinnacle', ml: [135, -160] },  // still on a pre-score number
+    ],
+  });
+  // Pinnacle has not updated since before the last score.
+  raw.bookmakers.forEach((bm) => {
+    const when = bm.key === 'pinnacle' ? stale : fresh;
+    bm.last_update = when;
+    bm.markets.forEach((m) => { m.last_update = when; });
+  });
+
+  const { game, offers } = normalizeGame(raw);
+  const away = game.away;
+
+  const pregame = consensusFairProb({ offers, game, market: 'h2h', selection: away, live: false });
+  const inplay = consensusFairProb({ offers, game, market: 'h2h', selection: away, live: true });
+
+  assert.equal(pregame.staleExcluded, 0, 'pre-game, an old timestamp is just an unmoved line');
+  assert.equal(inplay.staleExcluded, 1, 'in-play, the lagging book is dropped');
+  assert.equal(inplay.bookCount, 2);
+
+  // The stale book carries triple weight, so leaving it in inflates the
+  // consensus badly -- that is the whole bug this guards against.
+  assert.ok(pregame.prob - inplay.prob > 0.1,
+    `stale book inflated the fair price by ${((pregame.prob - inplay.prob) * 100).toFixed(1)} pts`);
+  assert.ok(inplay.prob < 0.35, `in-play consensus should sit near the live market, got ${inplay.prob}`);
+});
+
+test('a quote with no timestamp is not trusted in-play', () => {
+  const raw = makeGame({
+    books: [{ key: 'draftkings', ml: [-250, 198] }, { key: 'pinnacle', ml: [135, -160] }],
+  });
+  raw.bookmakers[0].last_update = new Date().toISOString();
+  raw.bookmakers[0].markets.forEach((m) => { m.last_update = raw.bookmakers[0].last_update; });
+  raw.bookmakers[1].last_update = null;
+  raw.bookmakers[1].markets.forEach((m) => { m.last_update = null; });
+
+  const { game, offers } = normalizeGame(raw);
+  const inplay = consensusFairProb({ offers, game, market: 'h2h', selection: game.away, live: true });
+  assert.equal(inplay.staleExcluded, 1, 'no timestamp means no way to know it is current');
+});
+
+test('a lagging book can no longer manufacture a positive edge', () => {
+  const now = Date.now();
+  const raw = makeGame({
+    books: [{ key: 'draftkings', ml: [-250, 198] }, { key: 'pinnacle', ml: [135, -160] }],
+  });
+  raw.bookmakers.forEach((bm, i) => {
+    const when = new Date(now - (i === 0 ? 0 : 10 * 60_000)).toISOString();
+    bm.last_update = when;
+    bm.markets.forEach((m) => { m.last_update = when; });
+  });
+
+  const { game, offers } = normalizeGame(raw);
+  const analyzed = analyzeGame({ game, offers, history: new Map(), live: true });
+  const sel = analyzed.selections.find((x) => x.market === 'h2h' && x.selection === game.away);
+  const fresh = sel.books.find((b) => b.book === 'draftkings');
+  const lagging = sel.books.find((b) => b.book === 'pinnacle');
+
+  assert.equal(sel.live, true);
+  // Only one fresh book survives, and it may not grade its own price, so there
+  // is no headline fair number. Saying nothing is the honest answer.
+  assert.equal(sel.fairProb, null);
+  assert.equal(fresh.edgePct, null, 'the fresh price has no independent reference left');
+
+  // The lagging book is still graded -- against the fresh one -- and comes out
+  // as the bad price it is. This is the case that used to run backwards and
+  // report the fresh price as huge value.
+  assert.ok(lagging.edgePct < 0, `lagging price should grade badly, got ${lagging.edgePct}`);
+  assert.ok((sel.bestEdgePct ?? -1) < 0, 'no positive edge is reported anywhere');
+});
+
 test('a user estimate overrides the market consensus', () => {
   const { game, offers } = normalizeGame(makeGame({
     books: [{ key: 'pinnacle', spread: -3 }, { key: 'draftkings', spread: -3 }],

@@ -85,10 +85,18 @@ function pointsPair(a, b) {
  * mark the result approximate. `excludeBook` keeps a book from grading its own
  * price, which would otherwise guarantee a zero edge everywhere.
  */
-export function consensusFairProb({ offers, game, market, selection, point, excludeBook = null }) {
-  const candidates = offers.filter(
-    (o) => o.market === market && o.selection === selection && o.book !== excludeBook,
-  );
+export function consensusFairProb({
+  offers, game, market, selection, point, excludeBook = null, live = false,
+  maxAgeMs = config.maxLiveQuoteAgeMs,
+}) {
+  const quotingThis = offers.filter((o) => o.market === market && o.selection === selection);
+  const allCandidates = quotingThis.filter((o) => o.book !== excludeBook);
+
+  // The freshness baseline comes from EVERY book quoting this selection,
+  // including the one being graded. Measuring it against the post-exclusion
+  // subset would let a single lagging book become its own reference and never
+  // be dropped -- which is exactly the case that fabricates an edge.
+  const { candidates, staleExcluded } = dropStaleQuotes(allCandidates, quotingThis, live, maxAgeMs);
 
   let weighted = 0;
   let weight = 0;
@@ -131,7 +139,39 @@ export function consensusFairProb({ offers, game, market, selection, point, excl
     contributors,
     source: sharpContributor ? `sharp:${sharpContributor.book}` : 'consensus',
     bookCount: contributors.length,
+    staleExcluded,
+    live,
   };
+}
+
+/**
+ * Remove quotes that are too far behind the freshest one for this selection.
+ *
+ * Only meaningful in-play. A book's `last_update` marks when it last repriced,
+ * so pre-game a timestamp hours old still describes a perfectly good current
+ * line -- filtering on it there would throw away the market. During a game the
+ * same staleness means the book has not caught up with the score yet, and
+ * including it manufactures an edge that cannot be bet: by the time you click
+ * it, the line has moved or the bet is voided.
+ *
+ * A quote with no timestamp at all is dropped in-play, because there is no way
+ * to tell whether it is current.
+ */
+function dropStaleQuotes(candidates, baseline, live, maxAgeMs) {
+  if (!live || !candidates.length) return { candidates, staleExcluded: 0 };
+
+  const stamps = baseline
+    .map((c) => Date.parse(c.lastUpdate))
+    .filter((t) => Number.isFinite(t));
+  if (!stamps.length) return { candidates, staleExcluded: 0 };
+
+  const freshest = Math.max(...stamps);
+  const fresh = candidates.filter((c) => {
+    const t = Date.parse(c.lastUpdate);
+    return Number.isFinite(t) && freshest - t <= maxAgeMs;
+  });
+
+  return { candidates: fresh, staleExcluded: candidates.length - fresh.length };
 }
 
 /**
@@ -316,7 +356,7 @@ export function lineMovement(offer, history) {
  * selection) pair, carrying the fair probability, every book's graded price, the
  * best available price, and the flags that fired.
  */
-export function analyzeGame({ game, offers, history, userEstimates = new Map() }) {
+export function analyzeGame({ game, offers, history, userEstimates = new Map(), live = false }) {
   const bySelection = new Map();
   for (const offer of offers) {
     const key = `${offer.market}|${offer.selection}`;
@@ -349,6 +389,7 @@ export function analyzeGame({ game, offers, history, userEstimates = new Map() }
           selection,
           point: offer.point,
           excludeBook: offer.book,
+          live,
         });
         if (consensus) {
           fair = consensus.prob;
@@ -372,7 +413,7 @@ export function analyzeGame({ game, offers, history, userEstimates = new Map() }
     // book the "consensus" is just that book's own de-vigged line, which would
     // show a confident number backed by nothing -- so it stays null, matching
     // the per-book edges (which are already null for want of a comparison).
-    const rawConsensus = consensusFairProb({ offers, game, market, selection, point: consensusPoint });
+    const rawConsensus = consensusFairProb({ offers, game, market, selection, point: consensusPoint, live });
     const consensusFair = (rawConsensus?.bookCount ?? 0) >= 2 ? rawConsensus : null;
 
     const flags = [];
@@ -395,6 +436,9 @@ export function analyzeGame({ game, offers, history, userEstimates = new Map() }
       fairSource: isNum(userEstimate) ? 'user' : consensusFair?.source ?? null,
       fairApprox: isNum(userEstimate) ? false : Boolean(consensusFair?.approx),
       fairBookCount: isNum(userEstimate) ? 0 : consensusFair?.bookCount ?? 0,
+      /** Books dropped from the consensus for being behind the live market. */
+      staleExcluded: consensusFair?.staleExcluded ?? 0,
+      live,
       userEstimate: isNum(userEstimate) ? userEstimate : null,
       books: graded.sort((a, b) => (b.edgePct ?? -999) - (a.edgePct ?? -999)),
       best,
@@ -414,6 +458,7 @@ export function analyzeGame({ game, offers, history, userEstimates = new Map() }
 
   return {
     ...game,
+    live,
     selections,
     bestEdgePct: maxOf(selections.map((s) => s.bestEdgePct)),
     maxMovePoints: maxAbs(selections.map((s) => s.maxMovePoints)),

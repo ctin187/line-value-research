@@ -166,6 +166,8 @@ export class Scanner extends EventEmitter {
       byGame.get(offer.gameId).push(offer);
     }
 
+    // `live` has to be known BEFORE grading, not bolted on after: in-play the
+    // value engine has to discard books that have not repriced yet.
     return games
       .map((game) =>
         analyzeGame({
@@ -173,9 +175,9 @@ export class Scanner extends EventEmitter {
           offers: byGame.get(game.id) || [],
           history: this.history,
           userEstimates: this.userEstimates,
+          live: Date.parse(game.commenceTime) <= Date.now(),
         }),
       )
-      .map((game) => ({ ...game, live: Date.parse(game.commenceTime) <= Date.now() }))
       .sort((a, b) => Date.parse(a.commenceTime) - Date.parse(b.commenceTime));
   }
 

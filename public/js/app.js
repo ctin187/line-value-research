@@ -428,6 +428,18 @@ function renderGame(game) {
   head.append(flags);
   card.append(head);
 
+  // In-play, the fair price is the weakest number on the page. Say so where it
+  // cannot be missed rather than burying it in a tooltip.
+  if (game.live) {
+    const warn = el('div', 'inplay-warning');
+    warn.innerHTML = '<b>In-play — treat the fair price and edge as unreliable.</b> '
+      + 'Books reprice at different speeds during a game, so a book that has not '
+      + 'caught up with the score can look like value when it is just behind. '
+      + 'Quotes more than two minutes off the pace are dropped, but what is left '
+      + 'is still a weaker read than a pre-game board.';
+    card.append(warn);
+  }
+
   let lastMarket = null;
   for (const sel of game.selections) {
     const visible = sel.books.filter((b) => state.books.has(b.book));
@@ -475,6 +487,13 @@ function renderSelection(game, sel, visibleBooks) {
       `${up ? '↑' : '↓'} ${Math.abs(move.pointDelta).toFixed(1)} pts vs ${formatPoint(move.openingPoint, { signed: sel.market !== 'totals' })} first seen`);
     chunk.title = `First seen ${formatKickoff(move.openedAt)} — this tool's own opener, not the book's.`;
     meta.append(chunk);
+  }
+  if (sel.staleExcluded > 0) {
+    const dropped = el('span', 'stale-note',
+      `${sel.staleExcluded} book${sel.staleExcluded === 1 ? '' : 's'} ignored — behind the live market`);
+    dropped.title = 'Their last price update is more than two minutes older than the '
+      + 'freshest book, so they are not pricing the current game state.';
+    meta.append(dropped);
   }
   if (sel.divergence?.triggered) {
     const d = sel.divergence;

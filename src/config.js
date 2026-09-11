@@ -158,6 +158,21 @@ export const config = {
     hardCapPct: num(process.env.MAX_RISK_HARD_PCT, 0.05),
   },
 
+  /**
+   * In-play only: how far behind the freshest quote a book may be and still
+   * count toward the consensus fair price.
+   *
+   * Books reprice at wildly different speeds during a game. One that has not
+   * updated since before the last score is still showing a pre-score number,
+   * and averaging it in drags the consensus far above the true live
+   * probability -- which the tool then reports as a large edge. It is not an
+   * edge: it is a line that is about to move or be voided.
+   *
+   * This does NOT apply pre-game, where a line that has not moved in hours is
+   * still the current, bettable price.
+   */
+  maxLiveQuoteAgeMs: num(process.env.MAX_LIVE_QUOTE_AGE_MS, 120_000),
+
   /** De-vig method used to turn book prices into fair probabilities. */
   devigMethod: process.env.DEVIG_METHOD === 'additive' ? 'additive' : 'multiplicative',
 

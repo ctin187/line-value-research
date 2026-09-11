@@ -245,6 +245,17 @@ button, input, select { font: inherit; color: inherit; }
 .flag-value { background: var(--green-bg); color: var(--green); }
 .flag-live { background: var(--red); color: #fff; }
 
+.inplay-warning {
+  background: var(--red-bg);
+  border-left: 3px solid var(--red);
+  padding: 9px 13px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.inplay-warning b { color: var(--red); font-weight: 600; }
+.stale-note { color: var(--red); }
+
 .market-group { padding: 4px 0; }
 .market-label {
   font-size: 10px;
