@@ -488,11 +488,12 @@ function renderSelection(game, sel, visibleBooks) {
     chunk.title = `First seen ${formatKickoff(move.openedAt)} — this tool's own opener, not the book's.`;
     meta.append(chunk);
   }
-  if (sel.staleExcluded > 0) {
-    const dropped = el('span', 'stale-note',
-      `${sel.staleExcluded} book${sel.staleExcluded === 1 ? '' : 's'} ignored — behind the live market`);
+  if (sel.staleBookTitles?.length) {
+    const names = sel.staleBookTitles.join(', ');
+    const dropped = el('span', 'stale-note', `${names} — behind the live market, ignored`);
     dropped.title = 'Their last price update is more than two minutes older than the '
-      + 'freshest book, so they are not pricing the current game state.';
+      + 'freshest book, so they are not pricing the current game state. Their prices '
+      + 'are shown but not graded, because a frozen line is not one you can take.';
     meta.append(dropped);
   }
   if (sel.divergence?.triggered) {
@@ -543,6 +544,14 @@ function renderBook(game, sel, book) {
   node.append(el('span', 'book-price', priceText));
 
   const edge = el('span', `book-edge edge-${book.tier}`);
+  if (book.stale) {
+    edge.textContent = 'behind';
+    edge.title = 'This book has not repriced since before the last scoring play. '
+      + 'Its number is not graded, because it is not a price you can actually get.';
+    node.append(edge);
+    node.classList.add('is-stale');
+    return node;
+  }
   edge.textContent = book.edgePct === null ? '—' : `${book.edgePct >= 0 ? '+' : ''}${book.edgePct.toFixed(1)}%`;
   edge.title = book.edgePct === null
     ? 'No independent fair price for this selection yet — only this book quotes it.'

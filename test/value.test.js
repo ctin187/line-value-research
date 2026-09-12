@@ -336,11 +336,43 @@ test('a lagging book can no longer manufacture a positive edge', () => {
   assert.equal(sel.fairProb, null);
   assert.equal(fresh.edgePct, null, 'the fresh price has no independent reference left');
 
-  // The lagging book is still graded -- against the fresh one -- and comes out
-  // as the bad price it is. This is the case that used to run backwards and
-  // report the fresh price as huge value.
-  assert.ok(lagging.edgePct < 0, `lagging price should grade badly, got ${lagging.edgePct}`);
-  assert.ok((sel.bestEdgePct ?? -1) < 0, 'no positive edge is reported anywhere');
+  // The lagging book is not graded at all. Measuring its frozen price against
+  // the books that HAVE repriced is precisely how a suspended line turns into a
+  // big green number, so it is marked and left ungraded instead.
+  assert.equal(lagging.stale, true);
+  assert.equal(lagging.edgePct, null, 'a frozen price is not an opportunity to size');
+  assert.equal(lagging.evPct, null);
+  assert.equal(lagging.tier, 'stale');
+
+  // And the board can name it rather than just counting it.
+  assert.deepEqual(sel.staleBookTitles, ['Pinnacle']);
+  assert.ok((sel.bestEdgePct ?? -1) <= 0, 'no positive edge is reported anywhere');
+});
+
+test('the best price never comes from a book that is behind the market', () => {
+  const now = Date.now();
+  const raw = makeGame({
+    books: [
+      { key: 'draftkings', ml: [-2200, 1100] },
+      { key: 'fanduel', ml: [-3000, 1300] },
+      { key: 'pinnacle', ml: [-469, 360] },   // frozen on a much earlier score
+    ],
+  });
+  raw.bookmakers.forEach((bm) => {
+    const when = new Date(now - (bm.key === 'pinnacle' ? 12 * 60_000 : 0)).toISOString();
+    bm.last_update = when;
+    bm.markets.forEach((m) => { m.last_update = when; });
+  });
+
+  const { game, offers } = normalizeGame(raw);
+  const sel = analyzeGame({ game, offers, history: new Map(), live: true })
+    .selections.find((x) => x.market === 'h2h' && x.selection === game.home);
+
+  // Pinnacle -469 against a market pricing ~96% would read as a huge edge.
+  // It is the single most seductive number the old code could produce.
+  assert.equal(sel.books.find((b) => b.book === 'pinnacle').stale, true);
+  assert.notEqual(sel.best.book, 'pinnacle', 'a frozen quote is not the best available price');
+  assert.ok((sel.bestEdgePct ?? -1) < 5, `no double-digit phantom edge, got ${sel.bestEdgePct}`);
 });
 
 test('a user estimate overrides the market consensus', () => {

@@ -256,6 +256,15 @@ button, input, select { font: inherit; color: inherit; }
 .inplay-warning b { color: var(--red); font-weight: 600; }
 .stale-note { color: var(--red); }
 
+/* A frozen in-play quote: shown for reference, visibly not a live option. */
+.book.is-stale {
+  opacity: 0.5;
+  border-left-color: var(--text-faint) !important;
+  background: var(--bg-raised) !important;
+}
+.book.is-stale .book-price { text-decoration: line-through; }
+.edge-stale { color: var(--text-faint); font-style: italic; }
+
 .market-group { padding: 4px 0; }
 .market-label {
   font-size: 10px;
